@@ -14,21 +14,50 @@ class ChatroomConsumer(WebsocketConsumer):
         self.chatroom_name = self.scope['url_route']['kwargs']['chatroom_name'] 
         self.chatroom = get_object_or_404(ChatGroup, group_name=self.chatroom_name)
         
-        self.accept()
+        async_to_sync(self.channel_layer.group_add)(
+            self.chatroom_name,
+            self.channel_name
+        )
         
+        self.accept()
+     
+    def disconnect(self, code):
+        async_to_sync(self.channel_layer.group_discard)(
+            self.chatroom_name,
+            self.channel_name
+        )
+    
     def receive(self, text_data):
         logger.info(f"test 2 {text_data}")
+        logger.info(f"Channel Name: {repr(self.channel_name)}")
         text_data_json = json.loads(text_data)
         body = text_data_json['body']
         
         message = GroupMessage.objects.create(
-            body = body,
-            author = self.user, 
-            group = self.chatroom 
+            body=body,
+            author=self.user, 
+            group=self.chatroom 
         )
         context = {
             'message': message,
             'user': self.user,
+        }
+
+        event = {
+            'type': 'message_handler',
+            'message_id': message.id,
+        }
+        async_to_sync(self.channel_layer.group_send)(
+            self.chatroom_name,
+            event
+        )
+
+    def message_handler(self, event):
+        message_id = event['message_id']
+        message = GroupMessage.objects.get(id=message_id)
+        context = {
+            'message': message,
+            'user':self.user
         }
         html = render_to_string("a_rtchat/partials/chat_message_p.html", context=context)
         self.send(text_data=html)
