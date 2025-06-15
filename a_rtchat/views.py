@@ -19,6 +19,17 @@ def chat_view(request, chatroom_name='public'):
                 other_user = member
                 break
     
+    private_chats = []
+    # Get private chat groups for user, excluding the current chatroom (optional)
+    user_private_chats = request.user.chat_groups.filter(is_private=True)
+    for room in user_private_chats:
+        # Get other members in this private chat
+        other_members = room.members.exclude(id=request.user.id)
+        for member in other_members:
+            private_chats.append({
+                'chatroom': room,
+                'member': member
+            })
     if request.htmx:
         form = ChatmessageCreateForm(request.POST)
         if form.is_valid:
@@ -36,7 +47,8 @@ def chat_view(request, chatroom_name='public'):
         'chat_messages': chat_messages, 
         'form': form,
         'other_user': other_user,
-        'chatroom_name': chatroom_name
+        'chatroom_name': chatroom_name,
+        'private_chats': private_chats, 
     }
     return render(request, 'a_rtchat/chat.html', context)
 
