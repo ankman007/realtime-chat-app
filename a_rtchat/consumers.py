@@ -4,9 +4,11 @@ from django.template.loader import render_to_string
 from asgiref.sync import async_to_sync
 import json
 from .models import *
+from loguru import logger
 
 class ChatroomConsumer(WebsocketConsumer):
     def connect(self):
+        logger.info("Connection established with chatroom consumer.")
         self.user = self.scope['user']
         self.chatroom_name = self.scope['url_route']['kwargs']['chatroom_name'] 
         self.chatroom = get_object_or_404(ChatGroup, group_name=self.chatroom_name)
@@ -26,12 +28,13 @@ class ChatroomConsumer(WebsocketConsumer):
         async_to_sync(self.channel_layer.group_discard)(
             self.chatroom_name, self.channel_name
         )
-        # remove and update online users
         if self.user in self.chatroom.users_online.all():
             self.chatroom.users_online.remove(self.user)
             self.update_online_count() 
         
+        
     def receive(self, text_data):
+        logger.info(f"Input text by user received:\n {text_data}")
         text_data_json = json.loads(text_data)
         body = text_data_json['body']
         
@@ -47,6 +50,7 @@ class ChatroomConsumer(WebsocketConsumer):
         async_to_sync(self.channel_layer.group_send)(
             self.chatroom_name, event
         )
+        
         
     def message_handler(self, event):
         message_id = event['message_id']
